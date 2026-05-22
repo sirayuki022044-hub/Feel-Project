@@ -1,16 +1,4 @@
 import streamlit as st
-from utils_auth import check_auth
-
-# 1. 페이지 설정 (로그인 후에는 사이드바를 보여주고 싶다면 "expanded"로 설정)
-st.set_page_config(page_title="마음날씨", initial_sidebar_state="expanded")
-
-# 2. 로그인 여부 즉시 확인 (인증 안 된 사용자는 login.py로 튕겨냄)
-check_auth()
-
-# --- 이후에 기존 프로그램 로직 작성 ---
-st.title("🏠 홈 화면")
-st.write(f"{st.session_state.user.user_metadata['full_name']}님, 오늘 하루는 어떠신가요?")
-import streamlit as st
 from utils_auth import check_auth, get_supabase
 from datetime import datetime
 
@@ -20,11 +8,11 @@ check_auth()
 
 # 2. 감정별 설정 (색상, 점수, 아이콘)
 emotion_config = {
-    "기쁨": {"color": "#FFF9C4", "score": 100, "icon": "☀️"},    # 노란색
-    "괜찮음": {"color": "#C8E6C9", "score": 80, "icon": "🌤️"},   # 초록색
+    "기쁨": {"color": "#FFF9C4", "score": 100, "icon": "☀️"},  # 노란색
+    "괜찮음": {"color": "#C8E6C9", "score": 80, "icon": "🌤️"},  # 초록색
     "그저그럼": {"color": "#F5F5F5", "score": 60, "icon": "☁️"},  # 회색
-    "슬픔": {"color": "#BBDEFB", "score": 40, "icon": "🌧️"},   # 파란색
-    "화가남": {"color": "#FFCDD2", "score": 20, "icon": "⚡"}    # 빨간색
+    "슬픔": {"color": "#BBDEFB", "score": 40, "icon": "🌧️"},  # 파란색
+    "화가남": {"color": "#FFCDD2", "score": 20, "icon": "⚡"}  # 빨간색
 }
 
 # 3. 감정 선택 및 배경색 변경 로직
@@ -64,3 +52,28 @@ with st.form("diary_form"):
             # Supabase 'diaries' 테이블에 저장
             res = supabase.table("diaries").insert(data).execute()
             st.success("오늘의 마음 날씨가 성공적으로 기록되었습니다!")
+            st.rerun()
+
+        # --- 5. 내가 기록한 일기 조회 로직 (정렬 문법 수정) ---
+st.write("---")
+st.subheader("🔍 나의 지난 마음 기록")
+
+supabase = get_supabase()
+current_user_id = st.session_state.user.id
+
+try:
+    # 💡 핵심 수정: ascending=False를 desc=True로 변경했습니다.
+    response = supabase.table("diaries").select("*").eq("user_id", current_user_id).order("date", desc=True).execute()
+    diaries = response.data
+
+    if not diaries:
+        st.info("아직 기록된 마음 일기가 없습니다. 오늘 첫 기록을 남겨보세요!")
+    else:
+        for diary in diaries:
+            # 안전하게 데이터를 가져오기 위해 .get()을 사용합니다.
+            with st.expander(f"📅 {diary['date']} | {diary.get('icon', '📝')} {diary['emotion']}"):
+                st.write(diary['content'])
+                st.caption(f"마음 점수: {diary['score']}점")
+
+except Exception as e:
+    st.error(f"기록을 불러오는 중 오류가 발생했습니다: {e}")
